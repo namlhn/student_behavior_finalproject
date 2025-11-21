@@ -1,0 +1,210 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div x-data="classReportApp()" class="space-y-8">
+
+    <div class="flex flex-col md:flex-row justify-between items-end gap-4 border-b pb-4">
+        <div>
+            <h1 class="text-3xl font-bold">Class Progress Report</h1>
+            <p class="text-gray-500">Aggregate analysis across multiple sessions</p>
+        </div>
+
+        <div class="flex gap-2">
+            <select x-model="selectedKey" class="select select-bordered w-full max-w-xs" @change="loadReport">
+                <option value="" disabled selected>Select Class - Subject</option>
+                <template x-for="opt in options" :key="opt.class + opt.subject">
+                    <option :value="opt.class + '|' + opt.subject" x-text="opt.class + ' - ' + opt.subject"></option>
+                </template>
+            </select>
+            <button class="btn btn-primary" @click="loadReport" :disabled="!selectedKey">
+                <i data-lucide="bar-chart"></i> Analyze
+            </button>
+        </div>
+    </div>
+
+    <div x-show="loading" class="flex justify-center py-10">
+        <span class="loading loading-spinner loading-lg text-primary"></span>
+    </div>
+
+    <div x-show="reportData && !loading" class="space-y-8" style="display: none;">
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="stat bg-base-100 shadow rounded-lg">
+                <div class="stat-title">Total Sessions</div>
+                <div class="stat-value text-primary" x-text="reportData?.meta.total_sessions">0</div>
+            </div>
+            <div class="stat bg-base-100 shadow rounded-lg">
+                <div class="stat-title">Avg. Class Engagement</div>
+                <div class="stat-value text-secondary" x-text="avgEngagement">0</div>
+                <div class="stat-desc">Score based on behaviors</div>
+            </div>
+            <div class="stat bg-base-100 shadow rounded-lg">
+                <div class="stat-title">Total Students Tracked</div>
+                <div class="stat-value" x-text="reportData?.students.length">0</div>
+            </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="font-bold text-lg mb-4 text-center">Class Engagement Trend (Session by Session)</h3>
+            <div class="h-72">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+
+        <div class="bg-base-100 rounded-lg shadow overflow-hidden">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h3 class="font-bold text-lg">Student Performance Summary</h3>
+                <input type="text" x-model="searchQuery" placeholder="Search student..."
+                    class="input input-bordered input-sm w-full max-w-xs" />
+            </div>
+            <div class="overflow-x-auto">
+                <table class="table w-full">
+                    <thead>
+                        <tr class="bg-base-200">
+                            <th>Student Name</th>
+                            <th class="text-center">Attendance (AI Detected)</th>
+                            <th class="text-center">Attendance Rate</th>
+                            <th>Dominant Emotion</th>
+                            <th>Frequent Behavior</th>
+                            <th class="text-right">Activity Score</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="stu in filteredStudents" :key="stu.name">
+                            <tr class="hover">
+                                <td class="font-bold" x-text="stu.name"></td>
+                                <td class="text-center">
+                                    <span x-text="stu.attended_count"></span> / <span
+                                        x-text="reportData.meta.total_sessions"></span>
+                                </td>
+                                <td class="text-center">
+                                    <div class="radial-progress text-primary text-xs"
+                                        :style="`--value:${stu.attendance_rate}; --size:2.5rem;`"
+                                        x-text="Math.round(stu.attendance_rate) + '%'">
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge badge-outline" :class="getEmoColor(stu.dominant_emotion)"
+                                        x-text="stu.dominant_emotion"></span>
+                                </td>
+                                <td x-text="stu.dominant_behavior"></td>
+                                <td class="text-right font-mono" x-text="stu.total_logs"></td>
+                            </tr>
+                        </template>
+                        <tr x-show="filteredStudents.length === 0">
+                            <td colspan="6" class="text-center py-4 text-gray-500">No data found</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function classReportApp() {
+        return {
+            options: [],
+            selectedKey: '',
+            loading: false,
+            reportData: null,
+            chartInstance: null,
+            searchQuery: '',
+
+            async init() {
+                // Load danh sách lớp học để chọn
+                const res = await fetch('/api/reports/options/classes');
+                const data = await res.json();
+                if (data.result === 'success') {
+                    this.options = data.reply;
+                }
+            },
+
+            async loadReport() {
+                if (!this.selectedKey) return;
+                this.loading = true;
+                const [className, subjectName] = this.selectedKey.split('|');
+
+                try {
+                    // Gọi API tổng hợp
+                    const url = `/api/reports/class/summary?class_name=${encodeURIComponent(className)}&subject_name=${encodeURIComponent(subjectName)}`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+
+                    if (data.result === 'success' && data.reply) {
+                        this.reportData = data.reply;
+                        this.$nextTick(() => {
+                            this.renderChart();
+                        });
+                    } else {
+                        alert("No data found for this class.");
+                        this.reportData = null;
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert("Error loading report.");
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            get filteredStudents() {
+                if (!this.reportData) return [];
+                return this.reportData.students.filter(s =>
+                    s.name.toLowerCase().includes(this.searchQuery.toLowerCase())
+                );
+            },
+
+            get avgEngagement() {
+                if (!this.reportData) return 0;
+                const total = this.reportData.trend.reduce((sum, item) => sum + item.score, 0);
+                return Math.round(total / this.reportData.meta.total_sessions);
+            },
+
+            getEmoColor(emo) {
+                const map = {
+                    'happy': 'badge-success',
+                    'neutral': 'badge-ghost',
+                    'sad': 'badge-warning',
+                    'angry': 'badge-error',
+                    'focused': 'badge-info'
+                };
+                return map[emo] || 'badge-ghost';
+            },
+
+            renderChart() {
+                const ctx = document.getElementById('trendChart');
+                if (this.chartInstance) this.chartInstance.destroy();
+
+                const labels = this.reportData.trend.map(t => t.date);
+                const scores = this.reportData.trend.map(t => t.score);
+
+                this.chartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Engagement Score',
+                            data: scores,
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, title: { display: true, text: 'Activity Score' } }
+                        }
+                    }
+                });
+            }
+        }
+    }
+</script>
+{% endblock %}

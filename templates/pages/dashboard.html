@@ -1,0 +1,222 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard - AI Monitor{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div x-data="dashboardApp()" class="space-y-8">
+
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-base-content">System Overview</h1>
+            <p class="text-base-content/60 mt-1">Real-time statistics of AI Classroom Analysis</p>
+        </div>
+        <div class="text-right hidden sm:block">
+            <div class="text-2xl font-mono" x-text="new Date().toLocaleTimeString()"></div>
+            <div class="text-sm text-base-content/60" x-text="new Date().toLocaleDateString()"></div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <div class="stats shadow bg-base-100 border border-base-200">
+            <div class="stat">
+                <div class="stat-figure text-primary">
+                    <div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                        <i data-lucide="users" class="w-6 h-6"></i>
+                    </div>
+                </div>
+                <div class="stat-title">Total Students</div>
+                <div class="stat-value text-primary" x-text="stats.students">0</div>
+                <div class="stat-desc">Managed profiles</div>
+            </div>
+        </div>
+
+        <div class="stats shadow bg-base-100 border border-base-200">
+            <div class="stat">
+                <div class="stat-figure text-secondary">
+                    <div class="w-12 h-12 bg-secondary/10 rounded-full flex items-center justify-center">
+                        <i data-lucide="monitor-play" class="w-6 h-6"></i>
+                    </div>
+                </div>
+                <div class="stat-title">Class Sessions</div>
+                <div class="stat-value text-secondary" x-text="stats.sessions">0</div>
+                <div class="stat-desc">Videos processed</div>
+            </div>
+        </div>
+
+        <div class="stats shadow bg-base-100 border border-base-200">
+            <div class="stat">
+                <div class="stat-figure text-accent">
+                    <div class="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center">
+                        <i data-lucide="activity" class="w-6 h-6"></i>
+                    </div>
+                </div>
+                <div class="stat-title">AI Events</div>
+                <div class="stat-value text-accent" x-text="formatNumber(stats.behaviors)">0</div>
+                <div class="stat-desc">Behaviors detected</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <div class="card bg-base-100 shadow border border-base-200">
+            <div class="card-body">
+                <h2 class="card-title text-sm uppercase text-base-content/60 mb-4">Behavior Distribution</h2>
+                <div class="h-64 relative">
+                    <canvas id="behaviorChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="card bg-base-100 shadow border border-base-200">
+            <div class="card-body">
+                <h2 class="card-title text-sm uppercase text-base-content/60 mb-4">Classroom Emotions</h2>
+                <div class="h-64 relative">
+                    <canvas id="emotionChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card bg-base-100 shadow border border-base-200">
+        <div class="card-body p-0">
+            <div class="p-4 border-b border-base-200 flex justify-between items-center">
+                <h3 class="font-bold">Recent Sessions</h3>
+                <a href="/sessions" class="btn btn-xs btn-ghost">View All</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="table table-zebra w-full">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Class & Subject</th>
+                            <th>Date</th>
+                            <th>AI Status</th>
+                            <th class="text-right">Detections</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="s in recentSessions" :key="s.id">
+                            <tr>
+                                <td class="font-mono text-xs" x-text="'#'+s.id"></td>
+                                <td>
+                                    <div class="font-bold" x-text="s.class_name"></div>
+                                    <div class="text-xs opacity-50" x-text="s.subject_name"></div>
+                                </td>
+                                <td x-text="s.date"></td>
+                                <td>
+                                    <span class="badge badge-sm" :class="{
+                                            'badge-success': s.status === 'completed',
+                                            'badge-warning': s.status === 'processing',
+                                            'badge-ghost': s.status === 'pending'
+                                          }" x-text="s.status"></span>
+                                </td>
+                                <td class="text-right" x-text="s.detections"></td>
+                                <td>
+                                    <a :href="`/sessions/${s.id}`" class="btn btn-square btn-ghost btn-sm">
+                                        <i data-lucide="eye" class="w-4 h-4"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        </template>
+                        <tr x-show="recentSessions.length === 0">
+                            <td colspan="6" class="text-center py-8 text-base-content/50">No sessions found</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    function dashboardApp() {
+        return {
+            stats: { students: 0, sessions: 0, behaviors: 0 },
+            recentSessions: [],
+
+            async init() {
+                await this.fetchData();
+                // Auto refresh every 30 seconds
+                setInterval(() => this.fetchData(), 30000);
+            },
+
+            async fetchData() {
+                try {
+                    const res = await fetch('/api/dashboard/stats/general');
+                    const data = await res.json();
+
+                    if (data.result === 'success') {
+                        this.stats = data.reply.counts;
+                        this.recentSessions = data.reply.recent_sessions;
+                        this.renderCharts(data.reply.charts);
+                    }
+                } catch (error) {
+                    console.error("Dashboard load error:", error);
+                }
+            },
+
+            formatNumber(num) {
+                return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            },
+
+            renderCharts(chartData) {
+                // --- 1. Behavior Pie Chart ---
+                const bCtx = document.getElementById('behaviorChart');
+                // Destroy old instance if exists to prevent memory leaks/overlap
+                if (window.bChart) window.bChart.destroy();
+
+                window.bChart = new Chart(bCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(chartData.behavior),
+                        datasets: [{
+                            data: Object.values(chartData.behavior),
+                            backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'right' }
+                        }
+                    }
+                });
+
+                // --- 2. Emotion Bar Chart ---
+                const eCtx = document.getElementById('emotionChart');
+                if (window.eChart) window.eChart.destroy();
+
+                window.eChart = new Chart(eCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: Object.keys(chartData.emotion),
+                        datasets: [{
+                            label: 'Frequency',
+                            data: Object.values(chartData.emotion),
+                            backgroundColor: '#6366f1',
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, grid: { display: false } },
+                            x: { grid: { display: false } }
+                        },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "layout.html" %}
+{% block content %}
+<div x-data="testApp('/api/test/emotion')" class="space-y-6">
+    <h1 class="text-2xl font-bold">Test Face & Emotion Detection</h1>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="bg-base-100 p-4 rounded-lg shadow space-y-4 h-fit">
+            <div class="form-control w-full">
+                <label class="label"><span class="label-text">Select portrait/classroom image</span></label>
+                <input type="file" accept="image/*" class="file-input file-input-bordered w-full"
+                    @change="handleUpload" />
+            </div>
+            <div class="divider">Results</div>
+            <div class="space-y-2 max-h-[400px] overflow-y-auto">
+                <template x-for="(item, idx) in results" :key="idx">
+                    <div class="alert bg-base-200 p-2 text-sm flex justify-between">
+                        <span class="font-bold badge badge-error text-white" x-text="item.label"></span>
+                        <span class="text-xs font-mono" x-text="`[${item.bbox}]`"></span>
+                    </div>
+                </template>
+                <div x-show="!results.length && hasRun" class="text-gray-400 text-center">
+                    No face detected
+                </div>
+            </div>
+        </div>
+
+        <div
+            class="lg:col-span-2 bg-black rounded-lg overflow-hidden relative group min-h-[400px] flex items-center justify-center">
+            <img x-ref="previewImg" class="max-w-full max-h-[600px] object-contain" />
+            <div x-show="!imgSrc" class="text-gray-500">No image selected</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function testApp(apiUrl) {
+        return {
+            imgSrc: null,
+            results: [],
+            hasRun: false,
+            async handleUpload(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                this.results = [];
+                this.hasRun = false;
+                const formData = new FormData();
+                formData.append('file', file);
+                try {
+                    const res = await fetch(apiUrl + '?annotate=1', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (data.result === 'success') {
+                        if (data.reply.image_base64) {
+                            this.imgSrc = data.reply.image_base64;
+                            this.$refs.previewImg.src = this.imgSrc;
+                        }
+                        this.results = data.reply.detections || [];
+                        this.hasRun = true;
+                    } else { alert('Error: ' + (data.message || 'Processing failed')); }
+                } catch (err) { alert('Server connection error'); }
+            }
+        }
+    }
+</script>
+{% endblock %}

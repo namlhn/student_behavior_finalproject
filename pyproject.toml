@@ -1,0 +1,24 @@
+[project]
+name = "student-behavior-web"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "faiss-cpu>=1.12.0",
+    "fastapi>=0.121.0",
+    "jinja2>=3.1.6",
+    "numpy>=2.3.4",
+    "onnxruntime>=1.23.2",
+    "opencv-python-headless>=4.11.0.86",
+    "passlib[bcrypt]>=1.7.4",
+    "pillow>=12.0.0",
+    "pydantic-settings>=2.11.0",
+    "pymysql>=1.1.2",
+    "python-multipart>=0.0.20",
+    "sqlalchemy>=2.0.44",
+    "torch>=2.9.0",
+    "torchvision>=0.24.0",
+    "ultralytics>=8.3.225",
+    "uvicorn[standard]>=0.38.0",
+]

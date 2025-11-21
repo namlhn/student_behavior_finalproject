@@ -1,0 +1,422 @@
+{% extends "layout.html" %}
+
+{% block title %}Students List{% endblock %}
+{% block header_title %}Students List{% endblock %}
+
+{% block content %}
+
+<div x-data="studentManager()" x-init="fetchStudents()" class="h-full flex flex-col">
+
+    <!-- Header Actions -->
+    <div
+        class="flex flex-col xl:flex-row justify-between items-center gap-4 mb-6 glass-panel p-6 rounded-2xl shadow-soft">
+        <div class="flex flex-wrap gap-3 w-full xl:w-auto flex-1">
+            <label
+                class="input input-bordered flex items-center gap-2 w-full md:w-96 bg-white/50 focus-within:bg-white transition-all duration-300 shadow-sm hover:shadow-md border-base-300 focus-within:border-primary">
+                <i data-lucide="search" class="w-5 h-5 opacity-50 text-primary"></i>
+                <input type="text" class="grow placeholder:text-base-content/40"
+                    placeholder="Search by name, code or email..." x-model="searchQuery"
+                    @keyup.debounce.500ms="fetchStudents()" />
+            </label>
+        </div>
+
+        <div class="flex gap-3">
+            <button @click="openModal('add')"
+                class="btn btn-primary shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 gap-2 text-white px-6 rounded-xl">
+                <i data-lucide="user-plus" class="w-5 h-5"></i>
+                <span class="font-semibold">Add New Student</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Students Table -->
+    <div class="overflow-hidden glass-panel rounded-2xl shadow-soft flex-1 flex flex-col border border-white/50">
+        <div class="overflow-x-auto flex-1">
+            <table class="table table-zebra w-full align-middle">
+                <thead
+                    class="bg-base-200/50 text-base-content/70 uppercase text-xs font-bold tracking-wider backdrop-blur-sm sticky top-0 z-10">
+                    <tr>
+                        <th class="py-5 pl-8">Student</th>
+                        <th>Birth Year</th>
+                        <th>GPA</th>
+                        <th>Student Code</th>
+                        <th>Class Info</th>
+                        <th>Status</th>
+                        <th class="text-right pr-8">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-base-200/50">
+                    <template x-if="isLoadingList">
+                        <tr>
+                            <td colspan="7" class="text-center py-10">
+                                <span class="loading loading-spinner loading-lg text-primary"></span>
+                            </td>
+                        </tr>
+                    </template>
+
+                    <template x-for="student in students" :key="student.id">
+                        <tr class="hover:bg-base-100/80 transition-colors group duration-200">
+                            <!-- Name + Email -->
+                            <td class="pl-8 py-4">
+                                <div class="flex flex-col">
+                                    <span
+                                        class="font-bold text-base-content text-lg group-hover:text-primary transition-colors"
+                                        x-text="student.name"></span>
+                                    <span class="text-xs opacity-70 flex items-center gap-1">
+                                        <i data-lucide="mail" class="w-3 h-3"></i>
+                                        <span x-text="student.email"></span>
+                                    </span>
+                                </div>
+                            </td>
+                            <!-- Birth Year -->
+                            <td class="text-sm font-medium"
+                                x-text="student.date_of_birth ? student.date_of_birth.substring(0,4) : '-'"></td>
+                            <!-- GPA -->
+                            <td class="text-sm font-mono"
+                                x-text="student.gpa !== null ? Number(student.gpa).toFixed(2) : '-'"></td>
+                            <!-- Student Code -->
+                            <td class="font-mono text-sm opacity-80 font-semibold" x-text="student.student_code"></td>
+                            <!-- Class / Major -->
+                            <td>
+                                <div class="flex flex-col">
+                                    <span class="font-medium" x-text="student.class_name"></span>
+                                    <span class="text-xs opacity-50" x-text="student.major"></span>
+                                </div>
+                            </td>
+                            <!-- Status -->
+                            <td>
+                                <div class="badge gap-1.5 py-3 px-4 font-medium"
+                                    :class="student.status === 'Active' ? 'badge-success text-white shadow-sm border-none' : 'badge-ghost opacity-70'">
+                                    <span class="w-2 h-2 rounded-full"
+                                        :class="student.status === 'Active' ? 'bg-white animate-pulse' : 'bg-base-content/40'"></span>
+                                    <span x-text="student.status"></span>
+                                </div>
+                            </td>
+                            <!-- Actions -->
+                            <td class="text-center pr-8">
+                                <div class="flex flex-row gap-3 justify-center items-center">
+                                    <button class="btn btn-sm btn-outline btn-primary flex items-center gap-2 tooltip"
+                                        data-tip="Chỉnh sửa thông tin" @click="openModal('edit', student.id)">
+                                        <i data-lucide="pencil" class="w-4 h-4"></i>
+                                        <span class="hidden md:inline">Edit</span>
+                                    </button>
+
+                                    <a :href="`/students/${student.id}/embedding`"
+                                        class="btn btn-sm btn-outline btn-secondary flex items-center gap-2 tooltip"
+                                        data-tip="Huấn luyện khuôn mặt AI">
+                                        <i data-lucide="scan-face" class="w-4 h-4"></i>
+                                        <span class="hidden md:inline">Face AI</span>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+
+                    <template x-if="!isLoadingList && students.length === 0">
+                        <tr>
+                            <td colspan="7" class="text-center py-10 text-base-content/50">No students found.</td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Student Form Modal -->
+    <dialog id="student_form_modal" class="modal backdrop-blur-sm">
+        <div class="modal-box w-11/12 max-w-4xl glass-panel shadow-2xl p-0 overflow-hidden rounded-3xl">
+            <div
+                class="bg-base-100/50 p-6 border-b border-base-200 flex justify-between items-center sticky top-0 z-20 backdrop-blur-md">
+                <h3 class="font-bold text-2xl flex items-center gap-3 text-primary">
+                    <div class="p-2 bg-primary/10 rounded-lg">
+                        <i :data-lucide="currentId ? 'user-cog' : 'user-plus'" class="w-6 h-6"></i>
+                    </div>
+                    <span x-text="currentId ? 'Edit Student Profile' : 'Add New Student'"></span>
+                </h3>
+                <button type="button"
+                    class="btn btn-sm btn-circle btn-ghost hover:bg-error/10 hover:text-error transition-colors"
+                    onclick="document.getElementById('student_form_modal').close()">✕</button>
+            </div>
+
+            <div class="p-8 overflow-y-auto max-h-[70vh]">
+                <form @submit.prevent="submitForm">
+                    <!-- Two Column Layout -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                        <!-- Column 1 -->
+                        <div class="space-y-6">
+                            <div
+                                class="flex items-center gap-2 text-primary font-bold uppercase tracking-wider text-xs border-b border-base-200 pb-2">
+                                <i data-lucide="user" class="w-4 h-4"></i> Personal Info
+                            </div>
+
+                            <div class="form-control w-full">
+                                <label class="label font-medium"><span class="label-text">Full Name <span
+                                            class="text-error">*</span></span></label>
+                                <input type="text" x-model="formData.name"
+                                    class="input input-bordered w-full focus:input-primary bg-base-100/50" required />
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="form-control">
+                                    <label class="label font-medium"><span class="label-text">Date of
+                                            Birth</span></label>
+                                    <input type="date" x-model="formData.date_of_birth"
+                                        class="input input-bordered w-full focus:input-primary bg-base-100/50" />
+                                </div>
+                                <div class="form-control">
+                                    <label class="label font-medium"><span class="label-text">Gender</span></label>
+                                    <select x-model="formData.gender"
+                                        class="select select-bordered w-full focus:select-primary bg-base-100/50">
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-control">
+                                <label class="label font-medium"><span class="label-text">Email <span
+                                            class="text-error">*</span></span></label>
+                                <input type="email" x-model="formData.email"
+                                    class="input input-bordered w-full focus:input-primary bg-base-100/50" required />
+                            </div>
+
+                            <div class="form-control">
+                                <label class="label font-medium"><span class="label-text">Phone Number</span></label>
+                                <input type="tel" x-model="formData.phone"
+                                    class="input input-bordered w-full focus:input-primary bg-base-100/50" />
+                            </div>
+
+                            <div class="form-control">
+                                <label class="label font-medium"><span class="label-text">Student Code</span></label>
+                                <input type="text" x-model="formData.student_code"
+                                    class="input input-bordered w-full focus:input-primary bg-base-100/50 font-mono"
+                                    placeholder="Auto-generated if empty" />
+                            </div>
+
+                            <div class="form-control">
+                                <label class="label font-medium"><span class="label-text">Class Name</span></label>
+                                <input type="text" x-model="formData.class_name"
+                                    class="input input-bordered w-full focus:input-primary bg-base-100/50" />
+                            </div>
+
+                            <div class="form-control">
+                                <label class="label font-medium"><span class="label-text">Address</span></label>
+                                <textarea x-model="formData.address"
+                                    class="textarea textarea-bordered h-28 focus:textarea-primary bg-base-100/50 resize-none"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Column 2 -->
+                        <div class="space-y-6">
+                            <div
+                                class="flex items-center gap-2 text-secondary-content font-bold uppercase tracking-wider text-xs border-b border-base-200 pb-2">
+                                <i data-lucide="graduation-cap" class="w-4 h-4"></i> Academic Info
+                            </div>
+
+                            <div class="form-control">
+                                <label class="label font-medium"><span class="label-text">Major</span></label>
+                                <input type="text" x-model="formData.major"
+                                    class="input input-bordered w-full focus:input-primary bg-base-100/50" />
+                            </div>
+
+                            <div class="form-control">
+                                <label class="label font-medium"><span class="label-text">Course / Batch</span></label>
+                                <input type="text" x-model="formData.course"
+                                    class="input input-bordered w-full focus:input-primary bg-base-100/50" />
+                            </div>
+
+                            <div class="p-6 bg-base-200/50 rounded-xl border border-base-200">
+                                <div class="space-y-6">
+                                    <div class="form-control">
+                                        <label class="label font-medium"><span class="label-text">Academic
+                                                Level</span></label>
+                                        <select x-model="formData.academic_level"
+                                            class="select select-bordered w-full focus:select-primary bg-white">
+                                            <option value="Freshman">Freshman</option>
+                                            <option value="Sophomore">Sophomore</option>
+                                            <option value="Junior">Junior</option>
+                                            <option value="Senior">Senior</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label font-medium"><span class="label-text">GPA</span></label>
+                                        <input type="number" step="0.01" x-model="formData.gpa"
+                                            class="input input-bordered w-full focus:input-primary bg-white" />
+                                    </div>
+                                    <div class="form-control">
+                                        <label class="label font-medium"><span class="label-text">Status</span></label>
+                                        <select x-model="formData.status"
+                                            class="select select-bordered w-full focus:select-primary bg-white">
+                                            <option value="Active">Active</option>
+                                            <option value="Inactive">Inactive</option>
+                                            <option value="Graduated">Graduated</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-action border-t border-base-200 mt-8 pt-6 flex justify-end gap-3">
+                        <button type="button" class="btn btn-ghost hover:bg-base-200"
+                            onclick="document.getElementById('student_form_modal').close()">Cancel</button>
+
+                        <button type="submit"
+                            class="btn btn-primary px-8 gap-2 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all"
+                            :class="isLoading ? 'btn-disabled' : ''">
+                            <span x-show="isLoading" class="loading loading-spinner loading-sm"></span>
+                            <i data-lucide="save" class="w-4 h-4" x-show="!isLoading"></i>
+                            <span>Save Changes</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </dialog>
+
+</div>
+
+<script>
+    function studentManager() {
+        return {
+            students: [],
+            isLoadingList: false,
+            searchQuery: '',
+
+            isLoading: false,
+            currentId: null,
+            formData: {
+                name: '', email: '', student_code: '', date_of_birth: null, gender: 'Male',
+                phone: '', address: '', class_name: '', major: '', course: '',
+                academic_level: 'Freshman', gpa: null, status: 'Active'
+            },
+
+            async fetchStudents() {
+                this.isLoadingList = true;
+                try {
+                    let url = '/api/students/';
+                    if (this.searchQuery) {
+                        url += `?search=${encodeURIComponent(this.searchQuery)}`;
+                    }
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error('Failed to fetch students');
+                    const result = await response.json();
+                    this.students = result.reply || [];
+
+                    this.$nextTick(() => {
+                        lucide.createIcons();
+                    });
+                } catch (error) {
+                    console.error('Error fetching students:', error);
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'error',
+                        title: 'Failed to load students',
+                        showConfirmButton: false,
+                        timer: 3000
+                    });
+                } finally {
+                    this.isLoadingList = false;
+                }
+            },
+
+            resetForm() {
+                this.currentId = null;
+                this.formData = {
+                    name: '', email: '', student_code: '', date_of_birth: null, gender: 'Male',
+                    phone: '', address: '', class_name: '', major: '', course: '',
+                    academic_level: 'Freshman', gpa: null, status: 'Active'
+                };
+            },
+
+            async openModal(mode, id = null) {
+                this.resetForm();
+                const modal = document.getElementById('student_form_modal');
+
+                if (mode === 'add') {
+                    this.currentId = null;
+                    modal.showModal();
+                    setTimeout(() => lucide.createIcons(), 100);
+                } else if (mode === 'edit' && id) {
+                    this.currentId = id;
+                    this.isLoading = true;
+                    modal.showModal();
+
+                    try {
+                        const response = await fetch(`/api/students/${id}`);
+                        if (!response.ok) throw new Error('Failed to fetch student');
+                        const result = await response.json();
+                        this.formData = { ...result.reply };
+                        if (!this.formData.date_of_birth) this.formData.date_of_birth = null;
+                    } catch (error) {
+                        Swal.fire({
+                            title: 'Error!',
+                            text: 'Error loading student data: ' + error.message,
+                            icon: 'error',
+                            confirmButtonColor: '#EF4444'
+                        });
+                        modal.close();
+                    } finally {
+                        this.isLoading = false;
+                    }
+                }
+
+                setTimeout(() => lucide.createIcons(), 100);
+            },
+
+            async submitForm() {
+                this.isLoading = true;
+                const isEdit = this.currentId !== null;
+                const url = isEdit ? `/api/students/${this.currentId}` : '/api/students/';
+                const method = isEdit ? 'PUT' : 'POST';
+
+                const payload = { ...this.formData };
+                if (!payload.date_of_birth) payload.date_of_birth = null;
+                if (payload.gpa === '' || payload.gpa === null) payload.gpa = null;
+                else payload.gpa = parseFloat(payload.gpa);
+
+                try {
+                    const response = await fetch(url, {
+                        method: method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(errData.detail || 'Operation failed');
+                    }
+
+                    const result = await response.json();
+                    document.getElementById('student_form_modal').close();
+
+                    await Swal.fire({
+                        title: isEdit ? 'Updated!' : 'Created!',
+                        text: isEdit ? 'Student profile updated successfully!' : 'New student added successfully!',
+                        icon: 'success',
+                        confirmButtonColor: '#01923F',
+                        timer: 1500,
+                        timerProgressBar: true
+                    });
+
+                    this.fetchStudents();
+
+                } catch (error) {
+                    Swal.fire({
+                        title: 'Error!',
+                        text: error.message,
+                        icon: 'error',
+                        confirmButtonColor: '#EF4444'
+                    });
+                } finally {
+                    this.isLoading = false;
+                }
+            }
+        }
+    }
+</script>
+{% endblock %}

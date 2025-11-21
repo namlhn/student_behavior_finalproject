@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="mytheme">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Student Behavior AI{% endblock %}</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.7.2/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts: Roboto & Open Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap"
+        rel="stylesheet">
+
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Roboto', 'sans-serif'],
+                        heading: ['Open Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#01923F',
+                        'primary-focus': '#017a34',
+                        secondary: '#E8F5E9', // Light green for backgrounds
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                        'glow': '0 0 15px rgba(1, 146, 63, 0.3)',
+                    }
+                }
+            },
+            daisyui: {
+                themes: [
+                    {
+                        mytheme: {
+                            "primary": "#01923F",
+                            "primary-content": "#ffffff",
+                            "secondary": "#E8F5E9",
+                            "secondary-content": "#01923F",
+                            "accent": "#FFC107", // Amber for contrast
+                            "neutral": "#1F2937",
+                            "base-100": "#ffffff",
+                            "base-200": "#F3F4F6", // Light gray background
+                            "base-300": "#E5E7EB",
+                            "info": "#3B82F6",
+                            "success": "#22c55e",
+                            "warning": "#F59e0b",
+                            "error": "#EF4444",
+                        },
+                    },
+                ],
+            },
+        }
+    </script>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #F3F4F6;
+            background-image: radial-gradient(#01923F 0.5px, transparent 0.5px), radial-gradient(#01923F 0.5px, #F3F4F6 0.5px);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+            background-attachment: fixed;
+            /* Subtle dot pattern opacity handled by overlay */
+        }
+
+        /* Overlay to soften the pattern */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(243, 244, 246, 0.95);
+            z-index: -1;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            font-family: 'Open Sans', sans-serif;
+        }
+
+        .drawer-content {
+            scroll-behavior: smooth;
+        }
+
+        /* Glassmorphism utilities */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94A3B8;
+        }
+    </style>
+</head>
+
+<body class="bg-base-200 text-base-content" hx-boost="true">
+
+    <div class="drawer lg:drawer-open">
+
+        <input id="main-drawer" type="checkbox" class="drawer-toggle" />
+
+        <div class="drawer-content flex flex-col min-h-screen">
+
+            <!-- Navbar with Glassmorphism -->
+            <div class="navbar sticky top-0 z-30 backdrop-blur-md bg-base-100/80 border-b border-base-200 shadow-sm">
+                <div class="flex-none lg:hidden">
+                    <label for="main-drawer" aria-label="open sidebar" class="btn btn-square btn-ghost">
+                        <i data-lucide="menu"></i>
+                    </label>
+                </div>
+
+                <div class="flex-1 px-4">
+                    <h1 class="text-xl font-bold text-base-content flex items-center gap-2">
+                        {% block header_title %}Dashboard{% endblock %}
+                    </h1>
+                </div>
+
+                <div class="flex-none gap-4 items-center pr-2">
+                    <div class="ml-2">
+                        <img src="/images/aitlogo.png" alt="AIT Logo" class="h-10 w-auto object-contain">
+                    </div>
+                </div>
+            </div>
+
+            <main class="p-6 flex-1 overflow-y-auto">
+                <div id="toast-container" class="toast toast-end z-50"></div>
+
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+
+        <div class="drawer-side z-40">
+            <label for="main-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+
+            <aside class="bg-base-100 min-h-screen w-72 flex flex-col border-r border-base-200 shadow-xl">
+                <div
+                    class="h-16 flex items-center justify-center border-b border-base-200 bg-base-100/95 sticky top-0 z-20 backdrop-blur">
+                    <a href="/" class="btn btn-ghost text-xl text-primary gap-2 font-bold tracking-tight">
+                        <i data-lucide="brain-circuit" class="w-6 h-6"></i>
+                        <span
+                            class="bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary-focus">Student
+                            AI</span>
+                    </a>
+                </div>
+
+                <div class="flex-1 overflow-y-auto p-4">
+                    {% include 'components/sidebar.html' %}
+                </div>
+
+                <div class="p-4 border-t border-base-200 text-center text-xs text-base-content/50 bg-base-50">
+                    <p>&copy; 2025 Student Behavior AI v1.0</p>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        document.body.addEventListener('htmx:afterSwap', () => lucide.createIcons());
+    </script>
+</body>
+
+</html>

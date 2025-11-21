@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.env.*
+.venv/
+venv/
+ENV/
+
+# IDE/editor
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+log/
+logs/
+*.log
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Cache
+.cache/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Data & uploads
+/assets/uploads/
+/assets/faiss_index.bin
+
+
+# Static output (if generated)
+static/*.map
+
+# Local DB or tmp files
+*.sqlite3
+*.db
+*.db-journal
+/tmp/
+*.tmp
+
+# Uvicorn/UV
+# Keep uv.lock committed, so DO NOT ignore it
+# uv.lock

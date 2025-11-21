@@ -1,0 +1,191 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="space-y-6" x-data="sessionsApp()" x-init="fetchSessions()">
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold">Class Sessions</h1>
+        <button @click="openCreate()" class="btn btn-primary text-white">
+            <i data-lucide="plus"></i> New Session
+        </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <template x-for="s in sessions" :key="s.id">
+            <div class="card bg-base-100 shadow-xl hover:shadow-2xl transition group">
+                <div class="card-body space-y-2">
+                    <div class="flex justify-between items-start">
+                        <div class="flex flex-col">
+                            <h2 class="card-title" x-text="s.class_name"></h2>
+                            <p class="text-xs opacity-60 font-mono" x-text="'ID: ' + s.id"></p>
+                        </div>
+                        <div class="badge" :class="{
+                                'badge-ghost': s.status === 'pending',
+                                'badge-info': s.status === 'queued' || s.status === 'processing',
+                                'badge-success': s.status === 'completed',
+                                'badge-error': s.status === 'failed'
+                             }" x-text="capitalize(s.status)"></div>
+                    </div>
+                    <p class="text-sm text-gray-500" x-text="s.subject_name + ' - ' + s.teacher_name"></p>
+                    <div class="flex items-center gap-2 text-xs">
+                        <i data-lucide="calendar" class="w-4 h-4"></i>
+                        <span x-text="s.session_date"></span>
+                        <i data-lucide="clock" class="w-4 h-4 ml-2"></i>
+                        <span x-text="s.start_time + ' - ' + s.end_time"></span>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2 border-t border-base-200 mt-2">
+                        <button type="button" class="btn btn-xs btn-outline tooltip" data-tip="View"
+                            @click.stop="viewSession(s.id)">
+                            <i data-lucide="eye" class="w-4 h-4"></i>
+                        </button>
+                        <button type="button" class="btn btn-xs btn-outline btn-primary tooltip" data-tip="Edit"
+                            @click.stop="openEdit(s)">
+                            <i data-lucide="pencil" class="w-4 h-4"></i>
+                        </button>
+                        <button type="button" class="btn btn-xs btn-outline btn-error tooltip" data-tip="Delete"
+                            @click.stop="deleteSession(s.id)">
+                            <i data-lucide="trash" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <dialog id="create_modal" class="modal">
+        <div class="modal-box max-w-2xl">
+            <h3 id="modal_title" class="font-bold text-lg mb-4">Add New Session</h3>
+            <form @submit.prevent="createSession" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="text" x-model="form.class_name" placeholder="Class Name (e.g. 12A1)"
+                        class="input input-bordered w-full" required />
+                    <input type="text" x-model="form.subject_name" placeholder="Subject"
+                        class="input input-bordered w-full" required />
+                    <input type="text" x-model="form.teacher_name" placeholder="Teacher Name"
+                        class="input input-bordered w-full md:col-span-2" required />
+                    <input type="date" x-model="form.session_date" class="input input-bordered w-full" required />
+                    <input type="number" min="0" x-model.number="form.student_count" placeholder="Student Count"
+                        class="input input-bordered w-full" />
+                    <div class="grid grid-cols-2 gap-4 md:col-span-2">
+                        <input type="time" x-model="form.start_time" class="input input-bordered w-full" required />
+                        <input type="time" x-model="form.end_time" class="input input-bordered w-full" required />
+                    </div>
+                </div>
+                <textarea x-model="form.notes" class="textarea textarea-bordered w-full h-24"
+                    placeholder="Notes / Evaluation"></textarea>
+                <div class="modal-action">
+                    <button type="button" onclick="create_modal.close()" class="btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary" x-text="editId ? 'Update' : 'Save'"></button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+</div>
+
+<script>
+    function sessionsApp() {
+        return {
+            sessions: [],
+            form: {
+                class_name: '', subject_name: '', teacher_name: '',
+                session_date: new Date().toISOString().split('T')[0],
+                start_time: '07:00', end_time: '09:00', student_count: 0, notes: ''
+            },
+            editId: null,
+            async fetchSessions() {
+                try {
+                    const res = await fetch('/api/sessions/');
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    if (data.result === 'success') {
+                        this.sessions = data.reply || [];
+                        this.$nextTick(() => { lucide.createIcons(); });
+                    }
+                } catch (e) {
+                    console.error('Failed to load sessions', e);
+                }
+            },
+            capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; },
+            openCreate() {
+                this.editId = null;
+                this.form = {
+                    class_name: '', subject_name: '', teacher_name: '',
+                    session_date: new Date().toISOString().split('T')[0],
+                    start_time: '07:00', end_time: '09:00', student_count: 0, notes: ''
+                };
+                const mt = document.getElementById('modal_title'); if (mt) mt.innerText = 'Add New Session';
+                create_modal.showModal();
+                setTimeout(() => lucide.createIcons(), 50);
+            },
+            openEdit(s) {
+                this.editId = s.id;
+                this.form = {
+                    class_name: s.class_name || '',
+                    subject_name: s.subject_name || '',
+                    teacher_name: s.teacher_name || '',
+                    session_date: s.session_date || new Date().toISOString().split('T')[0],
+                    start_time: s.start_time || '07:00',
+                    end_time: s.end_time || '09:00',
+                    student_count: s.student_count || 0,
+                    notes: s.notes || ''
+                };
+                const mt = document.getElementById('modal_title'); if (mt) mt.innerText = 'Edit Session';
+                create_modal.showModal();
+                setTimeout(() => lucide.createIcons(), 50);
+            },
+            async createSession() {
+                const method = this.editId ? 'PUT' : 'POST';
+                const url = this.editId ? `/api/sessions/${this.editId}` : '/api/sessions/';
+                const payload = { ...this.form };
+                try {
+                    const res = await fetch(url, {
+                        method: method,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await res.json();
+                    if (data.result === 'success') {
+                        create_modal.close();
+                        this.editId = null;
+                        // Reset form silently (do not reopen modal)
+                        this.form = {
+                            class_name: '', subject_name: '', teacher_name: '',
+                            session_date: new Date().toISOString().split('T')[0],
+                            start_time: '07:00', end_time: '09:00', student_count: 0, notes: ''
+                        };
+                        const mt = document.getElementById('modal_title'); if (mt) mt.innerText = 'Add New Session';
+                        await this.fetchSessions(); // reload list
+                    } else {
+                        alert(data.message || 'Save failed');
+                    }
+                } catch (e) { alert('Network error'); }
+            },
+            viewSession(id) { window.location.href = `/sessions/${id}`; },
+            async deleteSession(id) {
+                const confirmResult = await Swal.fire({
+                    title: 'Delete Session?',
+                    text: 'This will remove the session and all related logs permanently.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6',
+                    confirmButtonText: 'Yes, delete it',
+                });
+                if (!confirmResult.isConfirmed) return;
+                try {
+                    const res = await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
+                    const data = await res.json();
+                    if (data.result === 'success') {
+                        this.sessions = this.sessions.filter(x => x.id !== id);
+                        this.$nextTick(() => lucide.createIcons());
+                        Swal.fire('Deleted!', 'Session and related logs removed.', 'success');
+                    } else {
+                        Swal.fire('Error', data.message || 'Delete failed', 'error');
+                    }
+                } catch (e) {
+                    Swal.fire('Network Error', 'Could not delete session', 'error');
+                }
+            }
+        }
+    }
+</script>
+{% endblock %}

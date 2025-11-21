@@ -1,0 +1,64 @@
+<ul class="menu menu-md w-full gap-2 rounded-box">
+    <li>
+        <a href="/dashboard"
+            class="{{ 'active bg-primary text-white shadow-md' if active_page == 'dashboard' else 'hover:bg-secondary hover:text-primary' }} font-medium transition-all duration-200">
+            <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+            Dashboard
+        </a>
+    </li>
+
+    <li class="menu-title text-xs font-bold uppercase tracking-wider text-base-content/50 mt-4 px-4">Management</li>
+
+    <li>
+        <a href="/students"
+            class="{{ 'active bg-primary text-white shadow-md' if active_page == 'students' else 'hover:bg-secondary hover:text-primary' }} font-medium transition-all duration-200">
+            <i data-lucide="users" class="w-5 h-5"></i>
+            Students List
+        </a>
+    </li>
+
+    <li>
+        <a href="/face-detect"
+            class="{{ 'active bg-primary text-white shadow-md' if active_page == 'face_detect' else 'hover:bg-secondary hover:text-primary' }} font-medium transition-all duration-200">
+            <i data-lucide="scan-face" class="w-5 h-5"></i>
+            Face Detect
+            <span class="badge badge-sm badge-outline ml-auto">AI</span>
+        </a>
+    </li>
+
+
+
+    <li class="menu-title text-xs font-bold uppercase tracking-wider text-base-content/50 mt-4 px-4">Analysis</li>
+
+    <li>
+        <a href="/sessions"
+            class="{{ 'active bg-primary text-white shadow-md' if active_page == 'sessions' else 'hover:bg-secondary hover:text-primary' }} font-medium transition-all duration-200">
+            <i data-lucide="video" class="w-5 h-5"></i>
+            Classroom Sessions
+
+        </a>
+    </li>
+
+    <li>
+        <a href="/reports/class-summary"
+            class="{{ 'active bg-primary text-white shadow-md' if active_page == 'reports' else 'hover:bg-secondary hover:text-primary' }} font-medium transition-all duration-200">
+            <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+            Behavior Reports
+        </a>
+    </li>
+    <li class="menu-title mt-4">
+        <span>Testing Zone</span>
+    </li>
+    <li>
+        <a href="/test/behavior" class="{{ 'active' if active_page == 'test_behavior' else '' }}">
+            <i data-lucide="activity"></i>
+            Test Behavior
+        </a>
+    </li>
+    <li>
+        <a href="/test/emotion" class="{{ 'active' if active_page == 'test_emotion' else '' }}">
+            <i data-lucide="smile"></i>
+            Test Emotion
+        </a>
+    </li>
+</ul>

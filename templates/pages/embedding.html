@@ -1,0 +1,236 @@
+{% extends "layout.html" %}
+
+{% block title %}AI Embeddings - {{ student.name }}{% endblock %}
+{% block header_title %}Face Embeddings & Training{% endblock %}
+
+{% block content %}
+<div x-data="embeddingApp({{ student.id }}, {{ student.face_embedding_count or 0 }})" x-init="init()"
+    class="flex flex-col gap-6 h-full">
+
+    <div class="card lg:card-side bg-base-100 shadow-soft border border-base-200 p-6">
+
+        <div class="flex-1 flex flex-col justify-center">
+            <h2 class="text-3xl font-bold text-base-content">{{ student.name }}</h2>
+            <div class="flex flex-wrap gap-3 mt-3">
+                <div class="badge badge-lg badge-primary gap-2">
+                    <i data-lucide="hash" class="w-4"></i> {{ student.student_code }}
+                </div>
+                <div class="badge badge-lg badge-outline gap-2">
+                    <i data-lucide="layers" class="w-4"></i>
+                    <span x-text="totalVectors"></span> Embeddings
+                </div>
+                <div class="badge badge-lg badge-secondary gap-2" x-show="photos.length">
+                    <i data-lucide="images" class="w-4"></i>
+                    <span x-text="photos.length"></span> Photos
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center">
+            <a href="/students" class="btn btn-ghost gap-2">
+                <i data-lucide="arrow-left" class="w-4"></i> Back
+            </a>
+            <!-- Clear All button removed as requested -->
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+
+        <div class="card bg-base-100 shadow-soft border border-base-200 order-2 lg:order-1">
+            <div class="card-body">
+                <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
+                    <i data-lucide="upload-cloud" class="text-primary"></i> Upload Photos
+                </h3>
+
+                <div class="border-2 border-dashed border-base-300 rounded-2xl h-64 flex flex-col items-center justify-center cursor-pointer hover:bg-base-100 hover:border-primary transition-all relative"
+                    @dragover.prevent="isDragging = true" @dragleave="isDragging = false"
+                    @drop.prevent="handleDrop($event)" :class="isDragging ? 'bg-primary/5 border-primary' : ''">
+
+                    <input type="file" multiple accept="image/*" @change="handleFiles($event)"
+                        class="absolute inset-0 opacity-0 cursor-pointer z-10" />
+
+                    <div class="text-center pointer-events-none" x-show="files.length === 0">
+                        <div class="w-12 h-12 bg-base-200 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <i data-lucide="image-plus" class="w-6 h-6 text-base-content/50"></i>
+                        </div>
+                        <p class="font-medium">Drag & Drop photos here</p>
+                        <p class="text-sm opacity-50 mt-1">or click to browse</p>
+                    </div>
+
+                    <div class="grid grid-cols-4 gap-2 w-full h-full p-4 overflow-y-auto" x-show="files.length > 0">
+                        <template x-for="(file, i) in files" :key="i">
+                            <div class="relative aspect-square bg-base-200 rounded-lg overflow-hidden group">
+                                <img :src="URL.createObjectURL(file)" class="w-full h-full object-cover opacity-80" />
+                                <button @click.prevent="removeFile(i)"
+                                    class="absolute top-1 right-1 btn btn-xs btn-circle btn-error opacity-0 group-hover:opacity-100 z-20">✕</button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="card-actions justify-end mt-4">
+                    <button class="btn btn-primary w-full" @click="startEmbedding"
+                        :disabled="files.length === 0 || isProcessing">
+                        <span x-show="isProcessing" class="loading loading-spinner"></span>
+                        <span x-text="isProcessing ? 'Processing...' : 'Start AI Embedding'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card bg-neutral text-neutral-content shadow-soft order-3 lg:order-2">
+            <div class="card-body p-4 flex flex-col h-full">
+                <h3 class="font-mono text-sm opacity-50 mb-2 border-b border-white/10 pb-2">SYSTEM LOGS</h3>
+                <div class="flex-1 font-mono text-xs space-y-1 overflow-y-auto h-64" id="log-container">
+                    <p class="text-success">> Ready to process.</p>
+                    <template x-for="log in logs">
+                        <p :class="log.type === 'error' ? 'text-error' : 'text-success'">
+                            <span class="opacity-50" x-text="log.time"></span>
+                            <span x-text="log.msg"></span>
+                        </p>
+                    </template>
+                    <p x-show="isProcessing" class="animate-pulse">> AI Engine is analyzing faces...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gallery of existing embedded photos -->
+    <div class="card bg-base-100 shadow-soft border border-base-200">
+        <div class="card-body">
+            <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
+                <i data-lucide="images" class="text-primary"></i> Embedded Photos
+            </h3>
+            <div x-show="photos.length === 0" class="text-sm opacity-60">No embedded photos yet.</div>
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4" x-show="photos.length > 0">
+                <template x-for="p in photos" :key="p.id">
+                    <div class="group relative rounded-xl overflow-hidden bg-base-200/70 backdrop-blur">
+                        <img :src="photoUrl(p.photo_path)" class="w-full h-32 object-cover"
+                            @error="$el.src='/static/images/avatar.png'" />
+                        <div
+                            class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex flex-col justify-end p-2 gap-2 transition-opacity">
+                            <div class="text-xs text-white" x-text="formatDate(p.created_at)"></div>
+                            <button @click="deletePhoto(p.id)" class="btn btn-xs btn-error w-full gap-1">
+                                <i data-lucide="trash" class="w-3"></i> Delete
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Hàm JS nhận tham số chuẩn, không chứa cú pháp Jinja2 bên trong
+    function embeddingApp(studentId, initialVectorCount) {
+        return {
+            studentId: studentId,
+            totalVectors: initialVectorCount, // Nhận giá trị từ tham số
+            files: [],
+            logs: [],
+            isDragging: false,
+            isProcessing: false,
+            isClearing: false,
+            photos: [],
+            init() { this.fetchPhotos(); this.refreshVectors(); this.addLog('Loaded existing photos.'); },
+
+            handleFiles(e) { this.addFiles(e.target.files); },
+            handleDrop(e) {
+                this.isDragging = false;
+                this.addFiles(e.dataTransfer.files);
+            },
+            addFiles(fileList) {
+                for (let f of fileList) if (f.type.startsWith('image/')) this.files.push(f);
+            },
+            removeFile(i) { this.files.splice(i, 1); },
+
+            addLog(msg, type = 'info') {
+                const time = new Date().toLocaleTimeString('en-GB');
+                this.logs.push({ time: `[${time}]`, msg, type });
+                this.$nextTick(() => {
+                    const container = document.getElementById('log-container');
+                    container.scrollTop = container.scrollHeight;
+                });
+            },
+
+            photoUrl(p) { return '/' + p; },
+            async fetchPhotos() {
+                try {
+                    const res = await fetch(`/api/students/${this.studentId}/photos`);
+                    const data = await res.json();
+                    if (data.result === 'success') { this.photos = data.reply || []; }
+                } catch (e) { console.error(e); }
+            },
+            async refreshVectors() {
+                const res = await fetch(`/api/students/${this.studentId}`);
+                const data = await res.json();
+                if (data.result === 'success') { this.totalVectors = data.reply.face_embedding_count || 0; }
+            },
+            async startEmbedding() {
+                if (this.files.length === 0) return;
+                this.isProcessing = true;
+                this.addLog(`Uploading ${this.files.length} images...`, 'info');
+
+                const formData = new FormData();
+                this.files.forEach(f => formData.append('files', f));
+
+                try {
+                    const res = await fetch(`/api/students/${this.studentId}/faces`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await res.json();
+
+                    if (result.result === 'success') {
+                        const data = result.reply;
+                        this.addLog(`Success! Added ${data.success_count} vectors.`);
+
+                        // Cập nhật số lượng vector mới ngay lập tức
+                        this.totalVectors = data.total_embeddings;
+
+                        if (data.errors.length > 0) {
+                            data.errors.forEach(err => this.addLog(err, 'error'));
+                        }
+
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Completed',
+                            text: `Successfully trained ${data.success_count} faces.`,
+                            timer: 1500
+                        });
+                        this.files = []; // Clear file list
+                        await this.fetchPhotos();
+                    } else {
+                        throw new Error(result.message || 'Unknown error');
+                    }
+                } catch (err) {
+                    this.addLog(`Error: ${err.message}`, 'error');
+                    Swal.fire({ icon: 'error', title: 'Failed', text: err.message });
+                } finally {
+                    this.isProcessing = false;
+                    await this.refreshVectors();
+                }
+            }
+            , async deletePhoto(id) {
+                const ok = await Swal.fire({ title: 'Delete photo?', text: 'Embedding will be rebuilt from remaining photos.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33' });
+                if (!ok.isConfirmed) return;
+                try {
+                    const res = await fetch(`/api/students/${this.studentId}/photos/${id}`, { method: 'DELETE' });
+                    const data = await res.json();
+                    if (data.result === 'success') {
+                        this.addLog(`Deleted photo ${id} & rebuilt embeddings.`);
+                        await this.fetchPhotos();
+                        await this.refreshVectors();
+                        Swal.fire({ icon: 'success', title: 'Deleted', timer: 1000, showConfirmButton: false });
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Delete failed' });
+                    }
+                } catch (e) { Swal.fire({ icon: 'error', title: 'Error', text: e.message }); }
+            }
+            // clearAllEmbeddings removed as requested
+        }
+    }
+
+</script>
+{% endblock %}

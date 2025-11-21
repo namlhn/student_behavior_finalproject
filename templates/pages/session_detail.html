@@ -1,0 +1,425 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div x-data="sessionDetail({{ session.id }})" class="space-y-6">
+
+    <div class="flex justify-between items-start bg-base-100 p-4 rounded-lg shadow">
+        <div>
+            <h1 class="text-2xl font-bold mb-1">{{ session.class_name }} - {{ session.subject_name }}</h1>
+            <p class="text-gray-500">Teacher: {{ session.teacher_name }} | Date: {{ session.session_date }}</p>
+            <div class="mt-2 badge" :class="statusClass" x-text="capitalize(session.status)"></div>
+        </div>
+        <div x-show="!session.video_path">
+            <label class="btn btn-primary btn-sm">
+                <i data-lucide="upload"></i> Upload Video
+                <input type="file" accept="video/*" class="hidden" @change="uploadVideo">
+            </label>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6" x-show="session.video_path">
+
+        <div class="lg:col-span-2 space-y-4">
+            <div class="relative bg-black rounded-lg overflow-hidden aspect-video group">
+
+                <video x-ref="videoPlayer" class="w-full h-full object-contain" controls @timeupdate="onTimeUpdate"
+                    @loadedmetadata="resizeCanvas">
+                    {% if session.video_path %}
+                    <source src="/{{ session.video_path }}" type="video/mp4">
+                    {% endif %}
+                </video>
+
+                <canvas x-ref="overlay" class="absolute top-0 left-0 w-full h-full pointer-events-none"></canvas>
+
+            </div>
+            <div class="text-sm text-gray-500 italic text-center">
+                * Green: Group Behavior | Red: Student Face
+            </div>
+        </div>
+
+        <div class="bg-base-100 p-4 rounded-lg shadow h-fit">
+            <h3 class="font-bold mb-4">Details at: <span x-text="formatTime(currentTime)"></span></h3>
+
+            <div class="space-y-3 max-h-[400px] overflow-y-auto">
+                <template x-for="log in currentLogs" :key="log.id">
+                    <div class="border rounded p-2 text-sm bg-base-200">
+                        <div class="font-bold text-primary mb-1" x-text="log.behavior_type"></div>
+                        <div class="space-y-1">
+                            <template x-for="stu in log.students" :key="stu.id">
+                                <div class="flex justify-between items-center bg-white p-1 rounded">
+                                    <span x-text="stu.student_name"></span>
+                                    <span class="badge badge-sm" x-text="stu.emotion"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="currentLogs.length === 0" class="text-gray-400 text-center py-4">
+                    No behavior detected
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Charts (only when completed) -->
+    <template x-if="session.status === 'completed'">
+        <div class="space-y-6">
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="p-4 rounded-xl bg-primary/10 border border-primary/20 flex flex-col">
+                    <span class="text-xs uppercase tracking-wide text-primary/70">Total Detections</span>
+                    <span class="text-2xl font-bold text-primary" x-text="session.total_detections"></span>
+                </div>
+                <div class="p-4 rounded-xl bg-secondary border border-secondary/30 flex flex-col shadow-soft">
+                    <span class="text-xs uppercase tracking-wide text-primary">Behavior Types</span>
+                    <span class="text-2xl font-bold text-accent" x-text="Object.keys(behaviorStats).length"></span>
+                </div>
+                <div class="p-4 rounded-xl bg-accent/10 border border-accent/20 flex flex-col">
+                    <span class="text-xs uppercase tracking-wide text-accent/70">Emotion Types</span>
+                    <span class="text-2xl font-bold text-accent" x-text="Object.keys(emotionStats).length"></span>
+                </div>
+            </div>
+            <!-- Charts Grid -->
+            <div class="grid grid-cols-1 xl:grid-cols-6 gap-6">
+                <div class="xl:col-span-2 bg-base-100 p-6 rounded-lg shadow space-y-4">
+                    <h3 class="font-bold text-lg flex items-center gap-2">
+                        <i data-lucide="pie-chart" class="w-5 h-5"></i>
+                        Behavior Distribution
+                    </h3>
+                    <canvas id="behaviorChart" height="200"></canvas>
+                </div>
+                <div class="xl:col-span-2 bg-base-100 p-6 rounded-lg shadow space-y-4">
+                    <h3 class="font-bold text-lg flex items-center gap-2">
+                        <i data-lucide="activity" class="w-5 h-5"></i>
+                        Emotion Distribution
+                    </h3>
+                    <canvas id="emotionChart" height="200"></canvas>
+                </div>
+                <div class="xl:col-span-2 bg-base-100 p-6 rounded-lg shadow space-y-4">
+                    <h3 class="font-bold text-lg flex items-center gap-2">
+                        <i data-lucide="timeline" class="w-5 h-5"></i>
+                        Behavior Timeline
+                    </h3>
+                    <canvas id="timelineChart" height="200"></canvas>
+                </div>
+                <div class="xl:col-span-3 bg-base-100 p-6 rounded-lg shadow space-y-4">
+                    <h3 class="font-bold text-lg flex items-center gap-2">
+                        <i data-lucide="list" class="w-5 h-5"></i>
+                        Top Behaviors
+                    </h3>
+                    <canvas id="behaviorBarChart" height="220"></canvas>
+                </div>
+                <div class="xl:col-span-3 bg-base-100 p-6 rounded-lg shadow space-y-4">
+                    <h3 class="font-bold text-lg flex items-center gap-2">
+                        <i data-lucide="scan-face" class="w-5 h-5"></i>
+                        Emotion Profile
+                    </h3>
+                    <canvas id="emotionRadarChart" height="220"></canvas>
+                </div>
+            </div>
+        </div>
+    </template>
+
+</div>
+
+<!-- Chart.js CDN (correct file) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+    integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+    function sessionDetail(sessionId) {
+        return {
+            session: JSON.parse('{{ session_json | safe }}'),
+            timelineLogs: [],
+            currentLogs: [],
+            currentTime: 0,
+            behaviorStats: {},
+            emotionStats: {},
+            behaviorChart: null,
+            emotionChart: null,
+            timelineChart: null,
+            behaviorBarChart: null,
+            emotionRadarChart: null,
+            approxDuration: '-',
+            init: async function () {
+                if (this.session.status === 'completed') {
+                    await this.fetchTimeline();
+                    await this.fetchStats();
+                    this.waitChartAndRender();
+                } else if (['queued', 'processing'].includes(this.session.status)) {
+                    this.startPolling();
+                }
+                window.addEventListener('resize', () => this.resizeCanvas());
+                lucide.createIcons();
+            },
+            capitalize: function (s) {
+                return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+            },
+            statusClass: function () {
+                const map = {
+                    'pending': 'badge-ghost',
+                    'queued': 'badge-info',
+                    'processing': 'badge-warning animate-pulse',
+                    'completed': 'badge-success',
+                    'failed': 'badge-error'
+                };
+                return map[this.session.status] || 'badge-ghost';
+            },
+            uploadVideo: async function (e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                const formData = new FormData();
+                formData.append('file', file);
+                if (!confirm("Upload video and start AI analysis? (This may take a few minutes)")) return;
+                this.session.status = 'queued';
+                try {
+                    const res = await fetch(`/api/sessions/${sessionId}/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    if (data.result === 'success') {
+                        location.reload();
+                    } else {
+                        alert('Upload error: ' + data.message);
+                    }
+                } catch (err) {
+                    alert('Connection error');
+                }
+            },
+            startPolling: function () {
+                setInterval(() => {
+                    location.reload();
+                }, 5000);
+            },
+            fetchTimeline: async function () {
+                try {
+                    const res = await fetch(`/api/sessions/${sessionId}/timeline`);
+                    const data = await res.json();
+                    if (data.result === 'success') {
+                        this.timelineLogs = data.reply;
+                        this.computeApproxDuration();
+                        this.computeAggregates();
+                    }
+                } catch (e) { console.error(e); }
+            },
+            computeApproxDuration: function () {
+                if (!this.timelineLogs.length) { this.approxDuration = '0m'; return; }
+                const maxTs = Math.max(...this.timelineLogs.map(l => l.timestamp));
+                const minutes = Math.round(maxTs / 60);
+                this.approxDuration = minutes + 'm';
+            },
+            computeAggregates: function () {
+                // behaviors per minute
+                const buckets = {};
+                this.timelineLogs.forEach(l => {
+                    const m = Math.floor(l.timestamp / 60);
+                    buckets[m] = (buckets[m] || 0) + 1;
+                });
+                this.behaviorTimelineLabels = Object.keys(buckets).sort((a, b) => a - b).map(m => m + 'm');
+                this.behaviorTimelineValues = this.behaviorTimelineLabels.map(lbl => buckets[parseInt(lbl)]);
+                // top behaviors re-count from logs
+                const behaviorCounts = {};
+                this.timelineLogs.forEach(l => { behaviorCounts[l.behavior_type] = (behaviorCounts[l.behavior_type] || 0) + 1; });
+                this.topBehaviorLabels = Object.keys(behaviorCounts);
+                this.topBehaviorValues = this.topBehaviorLabels.map(k => behaviorCounts[k]);
+                // emotion profile from nested students
+                const emotionCounts = {};
+                this.timelineLogs.forEach(l => { (l.students || []).forEach(s => { emotionCounts[s.emotion] = (emotionCounts[s.emotion] || 0) + 1; }); });
+                this.emotionProfileLabels = Object.keys(emotionCounts);
+                this.emotionProfileValues = this.emotionProfileLabels.map(k => emotionCounts[k]);
+            },
+            fetchStats: async function () {
+                try {
+                    const res = await fetch(`/api/sessions/${sessionId}/stats`);
+                    const data = await res.json();
+                    if (data.result === 'success') {
+                        this.behaviorStats = data.reply.behavior_stats || {};
+                        this.emotionStats = data.reply.emotion_stats || {};
+                    }
+                } catch (e) { console.error('Stats fetch error', e); }
+            },
+            waitChartAndRender: function () {
+                if (window.Chart) {
+                    this.renderCharts();
+                } else {
+                    setTimeout(() => this.waitChartAndRender(), 120);
+                }
+            },
+            renderCharts: function () {
+                if (typeof Chart === 'undefined') {
+                    console.warn('Chart.js not loaded');
+                    return;
+                }
+                // Behavior Chart
+                const bCtx = document.getElementById('behaviorChart');
+                if (bCtx) {
+                    if (this.behaviorChart) this.behaviorChart.destroy();
+                    const bLabels = Object.keys(this.behaviorStats);
+                    const bValues = Object.values(this.behaviorStats);
+                    this.behaviorChart = new Chart(bCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: bLabels,
+                            datasets: [{
+                                data: bValues,
+                                backgroundColor: bLabels.map((_, i) => `hsl(${(i * 55) % 360} 70% 55%)`),
+                                borderWidth: 1,
+                                borderColor: '#ffffff'
+                            }]
+                        },
+                        options: {
+                            plugins: { legend: { position: 'bottom' } }
+                        }
+                    });
+                }
+                // Emotion Chart
+                const eCtx = document.getElementById('emotionChart');
+                if (eCtx) {
+                    if (this.emotionChart) this.emotionChart.destroy();
+                    const eLabels = Object.keys(this.emotionStats);
+                    const eValues = Object.values(this.emotionStats);
+                    this.emotionChart = new Chart(eCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: eLabels,
+                            datasets: [{
+                                label: 'Count',
+                                data: eValues,
+                                backgroundColor: eLabels.map((_, i) => `hsl(${(i * 40) % 360} 65% 55%)`)
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                        }
+                    });
+                }
+                // Timeline Chart (line)
+                const tCtx = document.getElementById('timelineChart');
+                if (tCtx && this.behaviorTimelineLabels && this.behaviorTimelineLabels.length) {
+                    if (this.timelineChart) this.timelineChart.destroy();
+                    this.timelineChart = new Chart(tCtx, {
+                        type: 'line',
+                        data: {
+                            labels: this.behaviorTimelineLabels,
+                            datasets: [{
+                                label: 'Detections/min',
+                                data: this.behaviorTimelineValues,
+                                fill: false,
+                                tension: 0.3,
+                                borderColor: '#2563eb',
+                                pointRadius: 3
+                            }]
+                        },
+                        options: {
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                        }
+                    });
+                }
+                // Behavior Bar Chart
+                const bbCtx = document.getElementById('behaviorBarChart');
+                if (bbCtx && this.topBehaviorLabels && this.topBehaviorLabels.length) {
+                    if (this.behaviorBarChart) this.behaviorBarChart.destroy();
+                    this.behaviorBarChart = new Chart(bbCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: this.topBehaviorLabels,
+                            datasets: [{
+                                label: 'Count',
+                                data: this.topBehaviorValues,
+                                backgroundColor: this.topBehaviorLabels.map((_, i) => `hsl(${(i * 50) % 360} 70% 55%)`)
+                            }]
+                        },
+                        options: {
+                            plugins: { legend: { display: false } },
+                            responsive: true,
+                            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                        }
+                    });
+                }
+                // Emotion Radar Chart
+                const erCtx = document.getElementById('emotionRadarChart');
+                if (erCtx && this.emotionProfileLabels && this.emotionProfileLabels.length) {
+                    if (this.emotionRadarChart) this.emotionRadarChart.destroy();
+                    this.emotionRadarChart = new Chart(erCtx, {
+                        type: 'radar',
+                        data: {
+                            labels: this.emotionProfileLabels,
+                            datasets: [{
+                                label: 'Emotion Intensity',
+                                data: this.emotionProfileValues,
+                                backgroundColor: 'rgba(99,102,241,0.2)',
+                                borderColor: 'rgba(99,102,241,1)',
+                                pointBackgroundColor: 'rgba(99,102,241,1)'
+                            }]
+                        },
+                        options: {
+                            scales: { r: { beginAtZero: true, ticks: { precision: 0 } } },
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+                }
+            },
+            onTimeUpdate: function (e) {
+                const vid = e.target;
+                this.currentTime = vid.currentTime;
+                const ctx = this.$refs.overlay.getContext('2d');
+                ctx.clearRect(0, 0, this.$refs.overlay.width, this.$refs.overlay.height);
+                if (!this.timelineLogs.length) return;
+                this.currentLogs = this.timelineLogs.filter(log =>
+                    Math.abs(log.timestamp - this.currentTime) < 0.6
+                );
+                const vW = vid.videoWidth;
+                const vH = vid.videoHeight;
+                const cW = this.$refs.overlay.width;
+                const cH = this.$refs.overlay.height;
+                const scaleX = cW / vW;
+                const scaleY = cH / vH;
+                this.currentLogs.forEach(log => {
+                    if (log.bbox) {
+                        const [bx1, by1, bx2, by2] = log.bbox.split(',').map(Number);
+                        this.drawBox(ctx, bx1, by1, bx2, by2, scaleX, scaleY, '#00ff00', log.behavior_type);
+                    }
+                    log.students.forEach(stu => {
+                        if (stu.face_bbox) {
+                            const [fx1, fy1, fx2, fy2] = stu.face_bbox.split(',').map(Number);
+                            const label = `${stu.student_name} (${stu.emotion})`;
+                            this.drawBox(ctx, fx1, fy1, fx2, fy2, scaleX, scaleY, '#ff0000', label);
+                        }
+                    });
+                });
+            },
+            drawBox: function (ctx, x1, y1, x2, y2, sX, sY, color, label) {
+                const rx = x1 * sX;
+                const ry = y1 * sY;
+                const rw = (x2 - x1) * sX;
+                const rh = (y2 - y1) * sY;
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(rx, ry, rw, rh);
+                if (label) {
+                    ctx.fillStyle = color;
+                    ctx.font = "12px sans-serif";
+                    ctx.fillText(label, rx, ry - 5);
+                }
+            },
+            resizeCanvas: function () {
+                const vid = this.$refs.videoPlayer;
+                const cvs = this.$refs.overlay;
+                if (vid) {
+                    cvs.width = vid.clientWidth;
+                    cvs.height = vid.clientHeight;
+                }
+            },
+            formatTime: function (s) {
+                const min = Math.floor(s / 60);
+                const sec = Math.floor(s % 60);
+                return `${min}:${sec < 10 ? '0' + sec : sec}`;
+            }
+        };
+    }
+</script>
+{% endblock %}
